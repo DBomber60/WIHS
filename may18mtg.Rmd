@@ -1,0 +1,181 @@
+---
+title: "WIHS Causal Inference for Sequential Treatment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F)
+library(tidyverse)
+library(knitr)
+options(dplyr.summarise.inform = FALSE)
+
+# read data
+labs = read.csv("labsum.csv") # CD4, etc.
+f22r = read.csv('f22r.csv') # f22r.csv: new recruit antiviral medication history
+drug1 = read.csv('drug1.csv') # drug1.csv: antiviral medications
+drugmap = read.csv('drugmap.csv', stringsAsFactors = FALSE) # drug code to classification
+el = read.csv("el.csv") # baseline covariates
+```
+
+
+```{r create.case.vis}
+# create a dataset called 'case.vis' of CASEID, VISIT, (drug) class, (recoded) id
+
+# subset to HIV + patients who have not taken an antiviral (EMTXDR=2)
+# filter out HIV negative patients (maindr != 1)
+
+f22r.f = f22r %>% filter(EMTXDR == 2, MAINDR != 1)
+drug1.f = drug1 %>% filter(CASEID %in% f22r.f$CASEID)
+# length(unique(drug1.f$CASEID)) # 104 (out of 132) end up being treated
+
+# let's look at these treatment sequences/ how much data do we have here 
+case.vis = drug1.f %>% group_by(CASEID, VISIT) %>% 
+  summarise(n=n()) %>% mutate(start = min(VISIT)) %>% arrange(CASEID, VISIT)
+
+# now, let's look at the kinds of drugs we observe in these sequences
+
+
+which.drugs = inner_join(case.vis, drug1.f, by = c("CASEID", "VISIT")) %>%
+  left_join(drugmap, by = c("DRUGD1"="Num")) %>% 
+  dplyr::select(CASEID, VISIT, DRUGD1, Class)
+
+
+l = which.drugs %>% group_by(CASEID, VISIT) %>% group_map(~ unique(.x$Class))
+
+# lapply a function 
+
+# l is a character vector with at least two elements
+dosage = function(l) {
+  
+  if(length(l) == 1) {return(l)} else {
+  
+  if ( "NNRTI" %in% l & "NRTI" %in% l ) {
+    return("NRTI + NNRTI")
+  } else if ( "NNRTI" %in% l & "PI" %in% l ) {
+    return("NNRTI + PI")
+  } else if ( "NRTI" %in% l & "PI" %in% l ) {
+    return("NRTI + PI")
+  } else if ( "NRTI" %in% l & "II" %in% l ) {
+    return("NRTI + II")
+  } else {return("All")} }
+}
+
+case.vis$class = unlist( lapply(l, dosage) )
+case.vis$id = sapply(case.vis$CASEID, function(x) which(unique(case.vis$CASEID)==x))
+
+```
+
+### Revised Causal Question
+
+- Time 0: time of first antiretroviral treatment
+- Further coarsening of treatment (ART vs. HAART)
+
+```{r}
+#### Revised question ####
+# make time 0 the time of first treatment
+case.vis2 = case.vis %>% group_by(CASEID) %>% mutate(t = VISIT - min(VISIT))
+
+# coarsen treatment
+case.vis2$class2 = ifelse(case.vis2$class == "NRTI", "ART", "HAART")
+
+
+ggplot(case.vis2, aes(t, id)) + geom_raster(aes(fill=class2)) + 
+  theme_minimal() + ggtitle("Treatment Sequences") + ylab("Patient ID") + xlab("Visit Number")
+
+plot2 = case.vis2 %>% group_by(t, class2) %>% summarise(n = n()) %>% 
+  mutate(prop = n/length(unique(case.vis$CASEID)))
+
+ggplot(plot2, aes(x = t, y = prop, fill = class2)) + geom_area() + theme_minimal() + 
+  ggtitle("Antiretroviral Therapy Use Among WIHS HIV+ Patients") + 
+  ylab("% Receiving Therapy") + xlab("Visit")
+```
+
+### Baseline Covariatets
+
+```{r warning=FALSE}
+
+base = left_join(case.vis2, el, by = "CASEID") %>% select(CASEID, VISIT, class2, DOB_EL, RACEEL) %>% 
+  group_by(CASEID) %>% slice(1) %>% mutate(age = 2003 - DOB_EL)
+
+base$race = ifelse( base$RACEEL == 2, "White, Hispanic", ifelse(base$RACEEL == 3, "Black, Non-Hispanic", "Other") )
+
+ggplot(base, aes(x = age, fill = class2)) + geom_histogram(bins = 40) + theme_minimal() + 
+  ggtitle("Age by Treatment Type")
+
+kable(base %>% group_by(race, class2) %>% summarise(n=n()) %>% pivot_wider(names_from = class2, values_from = n))
+```
+
+
+### Time Varying Covariates (Possible Mediators)
+
+```{r}
+# make dataframe that has the sequence of visits we are interested in for each patient
+minv = case.vis2 %>% group_by(CASEID) %>% summarise(`1` = min(VISIT))
+minv$`0` = minv$`1` - 1
+minv$`2` = minv$`1` + 1
+minv$`3` = minv$`1` + 2
+minv$`4` = minv$`1` + 3
+minv.l = minv %>% pivot_longer(!CASEID, values_to = "VISIT")
+
+labsdat = left_join(minv.l, labs, by = c("CASEID", "VISIT")) %>% group_by(CASEID) %>% arrange(CASEID, VISIT)  %>%
+  mutate(t = 1:n()) %>% left_join(case.vis2, by = c("CASEID", "VISIT")) %>%
+  select(CASEID, VISIT, VLOAD, CD4N, CD8N, CD3N, HSRAT, t.x, class2)
+
+
+# let's look at time 0 viral load versus time 1; same with CD4
+labsdat.plot1 = filter(labsdat, t.x < 3) %>% group_by(CASEID) %>% 
+  mutate(VLOAD.d = c(0,diff(VLOAD)), CD4N.d = c(0, diff(CD4N)), CD8N.d = c(0, diff(CD8N)), 
+         CD3N.d = c(0, diff(CD3N)), HSRAT.d = c(0, diff(HSRAT))) %>%
+  filter(t.x == 2)
+
+ggplot(labsdat.plot1, aes(x = VLOAD.d, fill = class2)) + 
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) + theme_minimal() + 
+  ggtitle("Difference in Viral Load After Initiating Treatment") + xlab("Time 1 - Time 0 Viral Load")
+
+ggplot(labsdat.plot1, aes(x = CD4N.d, fill = class2)) + 
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) + theme_minimal() + 
+  ggtitle("Difference in CD4N After Initiating Treatment") + xlab("Time 1 - Time 0 Viral Load")
+
+ggplot(labsdat.plot1, aes(x = CD8N.d, fill = class2)) + 
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) + theme_minimal() + 
+  ggtitle("Difference in CD8N After Initiating Treatment") + xlab("Time 1 - Time 0 Viral Load")
+
+ggplot(labsdat.plot1, aes(x = CD3N.d, fill = class2)) + 
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) + theme_minimal() + 
+  ggtitle("Difference in CD3N After Initiating Treatment") + xlab("Time 1 - Time 0 Viral Load")
+
+ggplot(labsdat.plot1, aes(x = HSRAT.d, fill = class2)) + 
+  geom_histogram(position = "identity", alpha = 0.5, bins = 5) + theme_minimal() + 
+  ggtitle("Difference in HSRAT After Initiating Treatment") + xlab("Time 1 - Time 0 Viral Load")
+
+
+```
+
+
+### Missingness
+
+
+```{r}
+
+np = length(unique(labsdat$CASEID))
+
+tab = labsdat %>% group_by(t.x) %>% summarise(n.cd4 = sum(is.na(CD4N))/np, n.cd8 = sum(is.na(VLOAD))/np)
+names(tab) = c("Visit Num", "Prop. Missing CD4", "Prop Missing VLOAD")
+kable(tab)
+
+nobs = labsdat %>% group_by(CASEID) %>% summarise(nc = sum(is.na(CD8N))) %>% group_by(nc) %>% summarise(n=n())
+# proportion missing for each t = 0,...,3
+
+ggplot(nobs, aes(x=nc, y = n)) + geom_bar(stat = "identity") + theme_minimal()
+
+```
+
+```{r}
+labsdat2 = labsdat %>% group_by(CASEID) %>% slice(1)
+
+hist(labsdat$VLOAD, breaks = 100)
+hist(labsdat$CD4N, breaks = 100)
+hist(labsdat$CD3N, breaks = 100)
+hist(labsdat$HSRAT)
+```
+
