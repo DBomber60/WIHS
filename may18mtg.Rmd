@@ -70,6 +70,24 @@ case.vis$id = sapply(case.vis$CASEID, function(x) which(unique(case.vis$CASEID)=
 - Time 0: time of first antiretroviral treatment
 - Further coarsening of treatment (ART vs. HAART)
 
+**Data** Semiannual visits from a cohort of HIV+ women. Baseline data collected upon study entry and lab data collected at each visit.
+
+**Outcome $Y$**: Time $K+1$ viral load.
+
+**General Question**: What is the distribution of $Y_{K+1}$ under two interventions of interest, $Y^{g^\prime}$ and $Y^{g}$. A causal effect is defined as a function of these two distributions (most commonly, difference in expectations).
+
+**Specific Question**: Let $g^{\prime}$ denote $K$ treatments with HAART and $g$ denote $K$ treatments with ART. When $K=3$, the outcome is the viral load at the end of year 2.
+
+**Problem 1**: Unknown causal structure among time-dependent lab values (viral load, CD4, CD8, HSRAT). 
+
+- *Proposed Solution*: Model each using spike/ slab variable selection to infer causal connections (posterior inclusion probabilities). Average causal effect estimates over posterior, $P(\mathcal{G} \vert \mathbf{D})$.
+
+**Problem 2**: Standard issues - significant amount of missing and censored data. 
+
+- *Proposed Solution*: Sample missing/ censored values 
+
+
+
 ```{r}
 #### Revised question ####
 # make time 0 the time of first treatment
@@ -105,6 +123,7 @@ ggplot(base, aes(x = age, fill = class2)) + geom_histogram(bins = 40) + theme_mi
 kable(base %>% group_by(race, class2) %>% summarise(n=n()) %>% pivot_wider(names_from = class2, values_from = n))
 ```
 
+30 total ART patients versus 74 total HAART (for first treatment).
 
 ### Time Varying Covariates (Possible Mediators)
 
@@ -151,6 +170,7 @@ ggplot(labsdat.plot1, aes(x = HSRAT.d, fill = class2)) +
 
 ```
 
+Clear decline in viral load after 6 months of treatment (for both ART and HAART). Effects on the other variables are less obvious.
 
 ### Missingness
 
@@ -166,16 +186,59 @@ kable(tab)
 nobs = labsdat %>% group_by(CASEID) %>% summarise(nc = sum(is.na(CD8N))) %>% group_by(nc) %>% summarise(n=n())
 # proportion missing for each t = 0,...,3
 
-ggplot(nobs, aes(x=nc, y = n)) + geom_bar(stat = "identity") + theme_minimal()
+ggplot(nobs, aes(x=nc, y = n)) + geom_bar(stat = "identity") + theme_minimal() + 
+  ggtitle("Number of Patients with x missing Lab values") + xlab("x = Number Missing")
 
 ```
+
+### Parametric Assumptions for TVC?
 
 ```{r}
 labsdat2 = labsdat %>% group_by(CASEID) %>% slice(1)
 
-hist(labsdat$VLOAD, breaks = 100)
-hist(labsdat$CD4N, breaks = 100)
-hist(labsdat$CD3N, breaks = 100)
-hist(labsdat$HSRAT)
+ggplot(labsdat2, aes(x=VLOAD)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white", bins = 30) +
+    geom_density(alpha=.2, fill="#FF6666") + theme_minimal() +  # Overlay with transparent density plot
+    ggtitle("Raw Viral Load")
+
+
+ggplot(labsdat2, aes(x=log(VLOAD))) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white", bins = 30) +
+    geom_density(alpha=.2, fill="#FF6666") + theme_minimal() +  # Overlay with transparent density plot
+    ggtitle("Log Viral Load")
+
 ```
 
+```{r}
+ggplot(labsdat2, aes(x=CD4N)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white", bins = 30) +
+    geom_density(alpha=.2, fill="#FF6666") + theme_minimal() +  # Overlay with transparent density plot
+    ggtitle("CD4 Cell Count")
+
+```
+
+A CD4 count is a blood test to check the amount of CD4 cells in the body. CD4 cells are a type of white blood cell. They alert other immune cells to the presence of infections such as bacteria and other viruses in the body. CD4 cells are also a subset of immune cells called T cells. When a person is living with HIV, the virus attacks the CD4 cells in their blood. This process damages CD4 cells and causes the number of them in the body to drop, making it difficult to fight infections. A healthy immune system normally has a CD4 count ranging from 500 to 1,600 cells per cubic millimeter of blood (cells/mm3),
+
+```{r}
+ggplot(labsdat2, aes(x=CD8N)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white", bins = 30) +
+    geom_density(alpha=.2, fill="#FF6666") + theme_minimal() +  # Overlay with transparent density plot
+    ggtitle("CD8 Cell Count")
+```
+
+The absolute number of all CD8 cells, which include both killer and suppressor T cells. The normal range for an HIV-negative person is 150 to 1,000. It is usually higher in a person with HIV. 
+
+```{r}
+ggplot(labsdat2, aes(x=HSRAT)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white", bins = 30) +
+    geom_density(alpha=.2, fill="#FF6666") + theme_minimal() +  # Overlay with transparent density plot
+    ggtitle("HSRAT: CD4/ CD8")
+```
+
+
+The CD4/CD8 ratio is often used as an indicator of immune system health. The normal range for HIV-negative people is around 1.0 to 4.0, or one to four CD4 cells for every CD8 cell. People with uncontrolled HIV may have fewer CD4 cells than CD8 cells, indicated by a ratio less than 1.0.

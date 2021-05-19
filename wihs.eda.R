@@ -1,10 +1,10 @@
-setwd("~/Documents/personal/diss/WIHS")
+#setwd("~/Documents/personal/diss/WIHS")
 library(tidyverse)
 
 #drugmap = rbind(drugmap, c("", 998, "NRTI + NNRTI"))
 #> drugmap = rbind(drugmap, c("", 999, "All"))
 
-labs = read.csv("labsum.csv")
+labs = read.csv("labsum.csv") # CD4, etc.
 f22r = read.csv('f22r.csv') # f22r.csv: new recruit antiviral medication history
 drug1 = read.csv('drug1.csv') # drug1.csv: antiviral medications
 drugmap = read.csv('drugmap.csv', stringsAsFactors = FALSE) # drug code to classification
@@ -57,13 +57,6 @@ case.vis$id = sapply(case.vis$CASEID, function(x) which(unique(case.vis$CASEID)=
 ggplot(case.vis, aes(VISIT, id)) + geom_raster(aes(fill=class)) + 
   theme_minimal() + ggtitle("Treatment Sequences") + ylab("Patient ID") + xlab("Visit Number")
 
-#ggsave("treatseq.png", dpi = 320, width = 12, height = 7)
-
-# TO DO (5.10)
-# 1. make a stacked area chart (https://www.r-graph-gallery.com/stacked-area-graph.html)
-# 2. add in the other untreated people to these TVC plots
-
-
 
 #### area plot to show the proportion of each treatment
 plot = case.vis %>% group_by(VISIT, class) %>% summarise(n = n()) %>% 
@@ -106,6 +99,68 @@ p4 = ggplot(labdat.plot, aes(x = class, y = HSRAT)) + geom_boxplot() +
 
 g = arrangeGrob(p1, p2, p3, p4, nrow = 2)
 ggsave("eda.pdf", g)
+
+
+# labs missingness EDA
+
+# make dataframe that has the sequence of visits we are interested in for each patient
+minv = case.vis %>% group_by(CASEID) %>% summarise(`1` = min(VISIT))
+minv$`2` = minv$`1` + 1
+minv$`3` = minv$`1` + 2
+minv$`4` = minv$`1` + 3
+minv.l = minv %>% pivot_longer(!CASEID, values_to = "VISIT")
+
+
+labsdat = left_join(minv.l, labs, by = c("CASEID", "VISIT")) %>% group_by(CASEID) %>% 
+  mutate(t = 1:n()) %>% filter(t <= 4)
+
+np = length(unique(labsdat$CASEID))
+
+labsdat %>% group_by(t) %>% summarise(n.cd4 = sum(is.na(CD4N))/np, n.cd8 = sum(is.na(VLOAD))/np)
+
+nobs = labsdat %>% group_by(CASEID) %>% summarise(nc = sum(is.na(CD8N))) %>% group_by(nc) %>% summarise(n=n())
+# proportion missing for each t = 0,...,3
+
+ggplot(nobs, aes(x=nc, y = n)) + geom_bar(stat = "identity") + theme_minimal()
+
+
+#################### BASELINE COVARIATES #########################
+
+el = read.csv("el.csv")
+base = left_join(case.vis, el, by = "CASEID") %>% select(CASEID, VISIT, class, DOB_EL, RACEEL) %>% 
+  group_by(CASEID) %>% slice(1) %>% mutate(age = 2003 - DOB_EL)
+
+
+
+
+# what if we make time 1 the time of the first treatment
+case.vis2 = case.vis %>% group_by(CASEID) %>% mutate(t = VISIT - min(VISIT))
+
+ggplot(case.vis2, aes(t, id)) + geom_raster(aes(fill=class)) + 
+  theme_minimal() + ggtitle("Treatment Sequences") + ylab("Patient ID") + xlab("Visit Number")
+
+plot2 = case.vis2 %>% group_by(t, class) %>% summarise(n = n()) %>% 
+  mutate(prop = n/length(unique(case.vis$CASEID)))
+
+ggplot(plot2, aes(x = t, y = prop, fill = class)) + geom_area() + theme_minimal() + 
+  ggtitle("Antiretroviral Therapy Use Among WIHS HIV+ Patients") + 
+  ylab("% Receiving Therapy") + xlab("Visit")
+
+# lets look at cases where time 0 treatment is NRTI + PI
+
+pi.cases = filter(case.vis2, t == 0, class == "NRTI + PI" )$CASEID
+nrti.pi = filter(case.vis2, CASEID %in% pi.cases, t < 4)
+nrti.pi %>% group_by(t) %>% summarise(n=n())
+ggplot(nrti.pi, aes(t, id)) + geom_raster(aes(fill=class)) + 
+  theme_minimal() + ggtitle("Treatment Sequences") + ylab("Patient ID") + xlab("Visit Number")
+
+nn.cases = filter(case.vis2, t == 0, class == "NRTI + NNRTI" )$CASEID
+nn = filter(case.vis2, CASEID %in% nn.cases, t < 4)
+nn %>% group_by(t) %>% summarise(n=n())
+ggplot(nn, aes(t, id)) + geom_raster(aes(fill=class)) + 
+  theme_minimal() + ggtitle("Treatment Sequences") + ylab("Patient ID") + xlab("Visit Number")
+
+
 
 ggplot(labdat, aes(x=VISIT, y = CD4N, group = CASEID)) + geom_line(aes(color=CASEID))
 ggplot(labdat, aes(x=VISIT, y = log(VLOAD), group = CASEID)) + geom_line(aes(color=CASEID))
