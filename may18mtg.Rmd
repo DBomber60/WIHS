@@ -258,12 +258,45 @@ The CD4/CD8 ratio is often used as an indicator of immune system health. The nor
 # let's filter to people who have an observed outcome (time 4)
 outcome.cohort = labsdat %>% filter(t.x==4) %>% filter(!is.na(VLOAD))
 labsdat.f = labsdat %>% filter(t.x < 5, CASEID %in% outcome.cohort$CASEID)
-
-
-
-
 labsdat.kplus1 = labsdat %>% filter(t.x==4)
 nrow(labsdat.kplus1) - sum(is.na(labsdat.kplus1$VLOAD))
+```
+
+
+```{r}
+# g-formula on reduced dataset
+labsdat.gf = labsdat.f %>% dplyr::select(CASEID, VLOAD, CD4N, t.x, class2) %>% mutate(t = t.x-1)
+labsdat.gf$A = ifelse(is.na(labsdat.gf$class2),0,1)
+labsdat.gf = labsdat.gf %>% group_by(CASEID) %>% mutate(A2 = c(A[2:4],'na'))
+
+# what is the true effect? - .7, - 1 (-1.7)
+# use gfoRmula package
+id = 'CASEID'
+time_name = 't'
+covnames = c('CD4N', 'A2')
+outcome_name = 'VLOAD'
+covtypes = c('normal', 'binary')
+histories = c(lagged)
+histvars = list(c('CD4N', 'A2'))
+covparams = list(covmodels=c(CD4N ~ lag1_CD4N + lag1_A2,
+                             A2 ~ CD4N + lag1_A2))
+ymodel = Y ~ A2 + lag1_A2 + lag1_CD4N
+intvars = list('A2', 'A2')
+interventions = list( list(c(static, rep(0,4))),
+                      list(c(static, c(1,1,1,1))) )
+int_descript = c('Never', 'Always')
+
+b = gformula_continuous_eof(labsdat.gf, id=id, time_name = time_name, covnames = covnames, covtypes = covtypes,
+                            covparams = covparams, histvars = histvars, histories = histories, outcome_name = outcome_name,
+                            ymodel = ymodel, intvars = intvars, interventions = interventions, int_descript = int_descript,
+                            seed = 1, nsamples = 100, ref_int = 2) # 0.2771665/ 0.2697512
+
+# .19 - .39 - .63
+lower = b$result$`MD lower 95% CI`[2] # lower
+upper = b$result$`MD upper 95% CI`[2]
+mean = b$result$`Mean difference`[2] # -1.79
+
+
 ```
 
 
