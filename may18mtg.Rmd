@@ -121,6 +121,15 @@ ggplot(base, aes(x = age, fill = class2)) + geom_histogram(bins = 40) + theme_mi
   ggtitle("Age by Treatment Type")
 
 kable(base %>% group_by(race, class2) %>% summarise(n=n()) %>% pivot_wider(names_from = class2, values_from = n))
+
+# how long have they had HIV? insurance type?
+hivstat = read.csv("hivstat.csv")
+
+hivstat.cohort = filter(hivstat, CASEID %in% unique(case.vis2$CASEID))
+
+
+f = read.csv('f00.csv')
+
 ```
 
 30 total ART patients versus 74 total HAART (for first treatment).
@@ -242,3 +251,20 @@ ggplot(labsdat2, aes(x=HSRAT)) +
 
 
 The CD4/CD8 ratio is often used as an indicator of immune system health. The normal range for HIV-negative people is around 1.0 to 4.0, or one to four CD4 cells for every CD8 cell. People with uncontrolled HIV may have fewer CD4 cells than CD8 cells, indicated by a ratio less than 1.0.
+
+```{r}
+# labsdat: caseid, visit, vload, cd4n, cd8n, cd3n, hsrat
+
+# let's filter to people who have an observed outcome (time 4)
+outcome.cohort = labsdat %>% filter(t.x==4) %>% filter(!is.na(VLOAD))
+labsdat.f = labsdat %>% filter(t.x < 5, CASEID %in% outcome.cohort$CASEID)
+
+
+
+
+labsdat.kplus1 = labsdat %>% filter(t.x==4)
+nrow(labsdat.kplus1) - sum(is.na(labsdat.kplus1$VLOAD))
+```
+
+
+
