@@ -132,3 +132,20 @@ p2 = ggplot(plotter, aes(x=log(CD4N), color=type, fill=type)) +
 # to do - distribution of baseline: case versus control: CHECK
 # is there a viral load threshold?
 
+```{r}
+# can we discretize the viral load variable
+
+labsdat.f$A = ifelse(is.na(labsdat.f$class2), 0 , 1)
+disc = labsdat.f %>% group_by(CASEID) %>% mutate(A2 = c( A[2:3], NA) )  %>% filter( !is.na(A2) )
+
+disc$VLOAD2 = cut(disc$VLOAD, breaks = c(0, 80, 200, 1000000))
+
+disc$VLOAD3 = ifelse(disc$VLOAD > 250, 1, 0)
+
+summary(glm(A2 ~ VLOAD3, family = binomial, data = disc))
+
+
+
+```
+
+
