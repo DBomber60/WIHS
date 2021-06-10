@@ -98,8 +98,37 @@ labs.control = labs %>% filter( !(CASEID %in% unique(drug1.f$CASEID)) ) %>%
 
 
 ```{r}
-# compare baseline measurements
+# compare baseline measurements across case/ control
+
+labsdat.control = labs.control %>% select(CASEID, VISIT, VLOAD, CD4N, CD8N, CD3N, HSRAT) %>%
+                  mutate(type = "control")
+
+labsdat.case = labsdat.f %>% select(CASEID, VISIT, VLOAD, CD4N, CD8N, CD3N, HSRAT) %>%
+                  mutate(type = "case")
+
+combined = rbind(labsdat.control, labsdat.case)
+
+plotter = combined %>% group_by(CASEID) %>% slice_head(n=1)
+
+#ggplot(plotter, aes(x = log(VLOAD), group = type)) + geom_histogram(aes(color = type))
+
+p1 = ggplot(plotter, aes(x=log(VLOAD), color=type, fill=type)) +
+  geom_histogram(position="identity", alpha=0.5, bins = 30)+
+  scale_color_manual(values=c("#999999", "#E69F00"))+
+  scale_fill_manual(values=c("#999999", "#E69F00"))+
+  labs(title="Weight histogram plot",x="Log(Viral Load)", y = "Count")+
+  theme_classic()
+
+p2 = ggplot(plotter, aes(x=log(CD4N), color=type, fill=type)) +
+  geom_histogram(position="identity", alpha=0.5, bins = 30)+
+  scale_color_manual(values=c("#999999", "#E69F00"))+
+  scale_fill_manual(values=c("#999999", "#E69F00"))+
+  labs(title="Log(CD4 Count)",x="Log(CD4 Count)", y = "Count")+
+  theme_classic()
+
 ```
 
-
+# TO DO
+# to do - distribution of baseline: case versus control: CHECK
+# is there a viral load threshold?
 
