@@ -1,7 +1,5 @@
 ############### FUNCTIONS TO CARRY OUT BAYESIAN G-FORMULA ################
 
-
-
 # sample new set of parameter values for a normally distributed response
 sample.new.N = function(theta.old, gamma.old, beta.old, sigsq.old, design, resp) {
   
@@ -14,8 +12,8 @@ sample.new.N = function(theta.old, gamma.old, beta.old, sigsq.old, design, resp)
   # sample new gamma 
   # assumption: independent elements, fixed nu_0, nu_1
   
-  p1 = dnorm(beta.old, sd = sqrt(v1)) * theta.new
-  p0 = dnorm(beta.old, sd = sqrt(v0)) * (1-theta.new)
+  p1 = dnorm(beta.old, sd = sqrt(nu_1)) * theta.new
+  p0 = dnorm(beta.old, sd = sqrt(nu_0)) * (1-theta.new)
   gamma.new = rbinom(p, 1, prob = p1/(p1 + p0))  
 
   # sample new beta
@@ -102,22 +100,27 @@ sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, res
   
   theta.new = rbeta(1, shape1 = sum(gamma.old) + 1  ,shape2 = p - sum(gamma.old) + 1)
   
+  # print(theta.new) fine
+  
   # sample new gamma 
   # assumption: independent elements, fixed nu_0, nu_1
   
-  p1 = dnorm(beta.old, sd = sqrt(v1)) * theta.new
-  p0 = dnorm(beta.old, sd = sqrt(v0)) * (1-theta.new)
+  p1 = dnorm(beta.old, sd = sqrt(nu_1)) * theta.new
+  p0 = dnorm(beta.old, sd = sqrt(nu_0)) * (1-theta.new)
   gamma.new = rbinom(p, 1, prob = p1/(p1 + p0))
+  #print(gamma.new)
   
   
-  dstar = ifelse(gamma.new==1, 1/v1, 1/v0)
+  dstar = ifelse(gamma.new==1, 1/nu_1, 1/nu_0)
 
   # sample new beta
-  beta.prop = beta_prop_mMALA = function(beta.old, epsilon.old, resp, design, dstar)
+  beta.prop = beta_prop_mMALA(beta.old, epsilon.old, resp, design, dstar)
+  print(beta.prop)
     
   # accept it?
-  alpha = acc_mMALA(beta_old = beta.old, beta_prop = beta.prop, y = resp, X = design, epsilon = epsilon.old, dstar = dstar)
-  Acc = min(1,alpha)
+  al = acc_mMALA(beta_old = beta.old, beta_prop = beta.prop, y = resp, X = design, epsilon = epsilon.old, dstar = dstar)
+  #print(al)
+  Acc = min(1,al)
   if (runif(1)<=Acc){
     beta.new = beta.prop;
   } else {beta.new = beta.old}
