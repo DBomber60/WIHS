@@ -119,13 +119,13 @@ sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, res
     
   # accept it?
   al = acc_mMALA(beta_old = beta.old, beta_prop = beta.prop, y = resp, X = design, epsilon = epsilon.old, dstar = dstar)
-  #print(al)
   Acc = min(1,al)
   if (runif(1)<=Acc){
     beta.new = beta.prop;
   } else {beta.new = beta.old}
   
-  epsilon.new = epsilon.old + (1/iter^0.7)*(Acc - 0.5);
+  epsilon.new = 0.01#epsilon.old + (1/it^0.7)*(Acc - 0.5);
+  print(epsilon.new)
 
   # sample new sigsq
   # assumptions: IG(.5, .5) prior on sigsq
