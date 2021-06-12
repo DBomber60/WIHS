@@ -50,14 +50,14 @@ logpi = function(beta,y,X, dstar){
 # compute gradient based on a N(0,D) prior on beta
 grad = function(beta, y, X, dstar) {
   eta = X%*%beta;
-  return(-dstar * beta + t(X) %*% (y - (1+exp(-eta))^-1))
+  return(-dstar * beta + t(X) %*% (y - plogis(eta)))
 }
 
 # compute inverse hessian based on a N(0,D) prior on beta
 # in calderman parlance, this is G^-1
 hessian = function(beta,y,X, dstar) {
   eta = X%*%beta;
-  phat = exp(eta) / (1 + exp(eta)) 
+  phat = plogis(eta)
   W = as.numeric(phat* (1-phat)) # Var(y)
   C = solve(diag(as.numeric(dstar)) + t(as.numeric(phat* (1-phat)) * X ) %*% X)
   return(C)
@@ -93,6 +93,8 @@ acc_mMALA = function(beta_old, beta_prop, y, X, epsilon, dstar) {
 
 # sample new set of parameter values for a normally distributed response
 sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, resp) {
+  nu_0 = 0.5
+  nu_1 = 1000
   
   p = ncol(design)
   # sample new theta
@@ -124,7 +126,7 @@ sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, res
     beta.new = beta.prop;
   } else {beta.new = beta.old}
   
-  epsilon.new = 0.01#epsilon.old + (1/it^0.7)*(Acc - 0.5);
+  epsilon.new = 0.01 #epsilon.old + (1/it^0.7)*(Acc - 0.5);
   print(epsilon.new)
 
   # sample new sigsq

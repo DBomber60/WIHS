@@ -5,6 +5,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
 ```
 
 ### Create analytical dataset for application
@@ -143,10 +144,22 @@ p2 = ggplot(plotter, aes(x=log(CD4N), color=type, fill=type)) +
 combined$VLOAD2 = ifelse(combined$VLOAD > exp(10), 1, 0)
 summary(glm(A2 ~ (VLOAD2), family = binomial, data = combined))
 
+
 ```
 
 ```{r}
+# combined = read.csv("combined.csv")[,-1]
+# 
+simple.analysis = combined %>% select(CASEID, VISIT, CD4N, A2, CD8N, CD3N, VLOAD) %>%
+  group_by(CASEID) %>% mutate(nv = VISIT - min(VISIT))
+# 
+dat = simple.analysis %>% pivot_wider(id_cols = CASEID, names_from = nv, values_from = c(CD4N, CD8N, A2, VLOAD, CD3N) ) %>%
+   select(!A2_2)
 
+dat.full <- mice(dat, m=5, maxit=50, meth='pmm', seed=500)
+
+write.csv( complete(dat.full,1), "combined2.csv")
+#dat = complete(dat.full, 1)
 
 ```
 

@@ -7,21 +7,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(mice)
 library(mvtnorm)
+library(tidyverse)
 ```
 
 ## Format data for analysis
 
 ```{r}
-simple.analysis = combined %>% select(CASEID, VISIT, CD4N, A2, CD8N) %>% 
-  group_by(CASEID) %>% mutate(nv = VISIT - min(VISIT))
-
-dat = simple.analysis %>% pivot_wider(id_cols = CASEID, names_from = nv, values_from = c(CD4N, CD8N, A2) ) %>%
-  select(!A2_2)
-
-dat.full <- mice(dat, m=5, maxit=50, meth='pmm', seed=500)
-
-dat = complete(dat.full, 1)
-
+dat = read.csv("combinedF.csv")[,-1]
 ```
 
 
@@ -74,9 +66,18 @@ sample.new = function(theta.old, gamma.old, beta.old, sigsq.old, design, resp) {
 
 ```
 
-
 ```{r}
+# one iteration of sampling from each set
 
+
+# loop over the time-dependent covariates
+# then the outcome
+
+```
+
+
+
+```{r sampler}
 #attach(dat.f1)
 set.seed(2)
 nIter = 1000
@@ -144,7 +145,7 @@ for(it in 2:nIter) {
 
 ```
 
-```{r}
+```{r posterior.predict}
 # completed dataset for each set of parameters
 # RANDOM G
 # augmented data set

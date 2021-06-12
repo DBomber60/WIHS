@@ -8,46 +8,34 @@ dat$VL_1 = ifelse(dat$VLOAD_1 < exp(10), 0, 1)
 
 #attach(dat.f1)
 set.seed(2)
-nIter = 1000
+nIter = 5000
 
 nu_1 = 5
 nu_0 = 0.3
 
-p = 2 # covariate model design matrix dimension
-pY = 4 # outcome model design matrix dimension
+p = 3 # covariate model design matrix dimension
+pY = 7 # outcome model design matrix dimension
 
 # array of parameters for each intermediate variable
 # theta (1)/ gamma (p)/ beta (p)/ sigsq (1)
 
 nCov = 2 # number of time-indexed covariates
-params = array(.1, dim = c(2, nIter, 2 * p + 2)) # intermediate variables
-paramsB = array(.1, dim = c(1, nIter, 2 * p + 2)) # params for binary variable (vload)
+params = array(.1, dim = c(3, nIter, 2 * p + 2)) # intermediate variables
+#paramsB = array(.01, dim = c(1, nIter, 2 * p + 2)) # params for binary variable (vload)
 paramsY = array(.1, dim = c(nIter, 2 * pY + 2))
+
+paramsB[1,1,5:7] = coefficients(glm(VL_1 ~ VL_0 + A2_0, family = binomial, data = dat))
 
 ########### sample parameters ############
 for(it in 2:nIter) {
   # sample theta
-  
-  ############## sample VLOAD's #####################
-  new.params = sample.new.B(theta.old = paramsB[1, it-1, 1],
-                            gamma.old = paramsB[1, it-1, 2:(p+1)],
-                            beta.old = paramsB[1, it-1, (p+2):(2*p+1)],
-                            epsilon.old = params[1, it-1, 2*p+2],
-                            design = cbind( dat$VL_0, dat$A2_0),
-                            resp = dat$VL_1 )
-  
-  paramsB[1, it, 1] = new.params$theta.new
-  paramsB[1, it, 2:(p+1)] = new.params$gamma.new
-  paramsB[1, it, (p+2):(2*p+1)] = new.params$beta.new
-  paramsB[1, it, 2*p+2] = new.params$epsilon.new
-  
   
   ############## sample CD4's #####################
   new.params = sample.new.N(theta.old = params[1, it-1, 1],
                           gamma.old = params[1, it-1, 2:(p+1)],
                           beta.old = params[1, it-1, (p+2):(2*p+1)],
                           sigsq.old = params[1, it-1, 2*p+2],
-                          design = cbind(log(dat$CD4N_0), dat$A2_0),
+                          design = cbind(1, log(dat$CD4N_0), dat$A2_0),
                           resp = log(dat$CD4N_1) )
   
   params[1, it, 1] = new.params$theta.new
@@ -55,12 +43,25 @@ for(it in 2:nIter) {
   params[1, it, (p+2):(2*p+1)] = new.params$beta.new
   params[1, it, 2*p+2] = new.params$sigsq.new
   
+  ############## sample CD3's #####################
+  new.params = sample.new.N(theta.old = params[3, it-1, 1],
+                            gamma.old = params[3, it-1, 2:(p+1)],
+                            beta.old = params[3, it-1, (p+2):(2*p+1)],
+                            sigsq.old = params[3, it-1, 2*p+2],
+                            design = cbind(1, log(dat$CD3N_0), dat$A2_0),
+                            resp = log(dat$CD3N_1) )
+  
+  params[3, it, 1] = new.params$theta.new
+  params[3, it, 2:(p+1)] = new.params$gamma.new
+  params[3, it, (p+2):(2*p+1)] = new.params$beta.new
+  params[3, it, 2*p+2] = new.params$sigsq.new
+  
   ############## sample CD8's #####################
   new.params = sample.new.N(theta.old = params[2, it-1, 1],
                           gamma.old = params[2, it-1, 2:(p+1)],
                           beta.old = params[2, it-1, (p+2):(2*p+1)],
                           sigsq.old = params[2, it-1, 2*p+2],
-                          design = cbind(log(dat$CD8N_0), dat$A2_0),
+                          design = cbind(1, log(dat$CD8N_0), dat$A2_0),
                           resp = log(dat$CD8N_1) )
   
   params[2, it, 1] = new.params$theta.new
@@ -69,12 +70,12 @@ for(it in 2:nIter) {
   params[2, it, 2*p+2] = new.params$sigsq.new
   
   ############## sample Y's #######################
-  pY = 4
+  pY = 7
   new.params = sample.new.N(theta.old = paramsY[it-1, 1],
                           gamma.old = paramsY[it-1, 2:(pY+1)],
                           beta.old = paramsY[it-1, (pY+2):(2*pY+1)],
                           sigsq.old = paramsY[it-1, 2*pY+2],
-                          design = cbind(log(dat$CD4N_1), log(dat$CD8N_1), dat$A2_0, dat$A2_1),
+                          design = cbind(1, log(dat$CD4N_1), log(dat$CD8N_1), log(dat$CD3N_1), dat$VL_1, dat$A2_0, dat$A2_1),
                           resp = log(dat$CD4N_2) )
   
   paramsY[it, 1] = new.params$theta.new
@@ -83,6 +84,13 @@ for(it in 2:nIter) {
   paramsY[it, 2*pY+2] = new.params$sigsq.new
   
 }
+
+plot(paramsB[,,5])
+
+# write.csv(params[1,,], "CD4samples.csv")
+# write.csv(params[2,,], "CD8samples.csv")
+# write.csv(params[3,,], "CD3samples.csv")
+# write.csv(paramsY, "Ysamples.csv")
 
 
 #### GF using posterior predictive density
