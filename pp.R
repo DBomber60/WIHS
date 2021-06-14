@@ -1,5 +1,5 @@
 # TODO: 2 figures
-# 1: baseline covs (see create.data)
+# 1: spaghetti plots by patient
 # 2. diffs/ most likely graph
 
 
@@ -30,7 +30,7 @@ hist(filter(dat, t1 == 1)$CD4N_2, xlim = c(0, 1500))
 
 # draws of pp
 row = 201
-ndraws = 200
+ndraws = 500
 
 diffs = array(0, dim = ndraws)
 

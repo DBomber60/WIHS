@@ -133,6 +133,23 @@ p2 = ggplot(plotter, aes(x=log(CD4N), color=type, fill=type)) +
 
 ```
 
+```{r}
+# spaghetti plot
+combined2 = combined %>% group_by(CASEID) %>% mutate(t = VISIT - min(VISIT)) %>% ungroup()
+
+p1 = ggplot(combined2, aes(x = as.factor(t), y = log(CD4N), group = CASEID)) + geom_line(aes(color = type, alpha=0.9))  + theme_minimal() + theme(legend.position = "none") + xlab("t") + ggtitle("Log(CD4) At Times 0,1,2")
+
+p2 = ggplot(filter(combined2, t<2), aes(x = as.factor(t), y = log(VLOAD), group = CASEID)) +
+  geom_line(aes(color = type, alpha=0.9))  + theme_minimal() + 
+  theme(legend.position = "none") + xlab("t") + ggtitle("HIV Viral Load At Times 0,1")
+
+
+library(gridExtra)
+ggsave("base.pdf", arrangeGrob(p1, p2, nrow = 1), width = 14, height = 7)
+
+```
+
+
 # TO DO
 # to do - distribution of baseline: case versus control: CHECK
 # is there a viral load threshold?
