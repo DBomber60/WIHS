@@ -73,18 +73,15 @@ sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, res
   # sample new beta
   dstar = ifelse(gamma.new == 1, 1/nu_1, 1/nu_0)
   beta.prop = beta_prop_mMALA(beta.old, epsilon.old, resp, design, dstar)
-  #print(beta.prop)
-  
+
   # accept it?
   al = acc_mMALA(beta_old = beta.old, beta_prop = beta.prop, y = resp, X = design, epsilon = epsilon.old, dstar = dstar)
-  print(al)
   Acc = min(1,al)
   if (runif(1)<=Acc){
     beta.new = beta.prop;
   } else {beta.new = beta.old}
   
   epsilon.new = exp( log(epsilon.old) + (1/it^0.7)*(Acc - 0.4) )
-  print(epsilon.new)
   
   # assume scale mixture prior and normal likelihood for response with sigma = sigma^2 * I
   #M = (t(design) %*% design)*sigsq.old^-1 + diag(ifelse(gamma.new == 1, 1/nu_1, 1/nu_0)) 

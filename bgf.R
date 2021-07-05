@@ -1,4 +1,5 @@
 source('drivers.R')
+source('drivers.logistic.R')
 
 dat = read.csv("combined2.csv")[,-1]
 
@@ -7,10 +8,10 @@ dat$VL_1 = ifelse(dat$VLOAD_1 < exp(10), 0, 1)
 
 #attach(dat.f1)
 set.seed(2)
-nIter = 5000
+nIter = 10000
 
 nu_1 = 5
-nu_0 = 0.3
+nu_0 = 0.05
 
 p = 3 # covariate model design matrix dimension
 pY = 7 # outcome model design matrix dimension
@@ -20,7 +21,7 @@ pY = 7 # outcome model design matrix dimension
 
 nCov = 2 # number of time-indexed covariates
 params = array(.1, dim = c(3, nIter, 2 * p + 2)) # intermediate variables
-#paramsB = array(.01, dim = c(1, nIter, 2 * p + 2)) # params for binary variable (vload)
+paramsB = array(.01, dim = c(nIter, 2 * p + 2)) # params for binary variable (vload)
 paramsY = array(.1, dim = c(nIter, 2 * pY + 2))
 
 #paramsB[1,1,5:7] = coefficients(glm(VL_1 ~ VL_0 + A2_0, family = binomial, data = dat))
@@ -68,6 +69,19 @@ for(it in 2:nIter) {
   params[2, it, (p+2):(2*p+1)] = new.params$beta.new
   params[2, it, 2*p+2] = new.params$sigsq.new
   
+  ############## sample VL's #####################
+  new.params = sample.new.B(theta.old = paramsB[it-1, 1],
+                            gamma.old = paramsB[it-1, 2:(p+1)],
+                            beta.old = paramsB[it-1, (p+2):(2*p+1)],
+                            epsilon.old = paramsB[it-1, 2*p+2],
+                            design = cbind(1, dat2$VL_0, dat2$A2_0),
+                            resp = dat2$VL_1 )
+  
+  paramsB[it, 1] = new.params$theta.new
+  paramsB[it, 2:(p+1)] = new.params$gamma.new
+  paramsB[it, (p+2):(2*p+1)] = new.params$beta.new
+  paramsB[it, 2*p+2] = new.params$epsilon.new
+  
   ############## sample Y's #######################
   pY = 7
   new.params = sample.new.N(theta.old = paramsY[it-1, 1],
@@ -84,12 +98,13 @@ for(it in 2:nIter) {
   
 }
 
-plot(paramsB[,,5])
+#plot(paramsB[,,5])
 
-# write.csv(params[1,,], "CD4samples.csv")
-# write.csv(params[2,,], "CD8samples.csv")
-# write.csv(params[3,,], "CD3samples.csv")
-# write.csv(paramsY, "Ysamples.csv")
+write.csv(params[1,,], "CD4samples.csv")
+write.csv(params[2,,], "CD8samples.csv")
+write.csv(params[3,,], "CD3samples.csv")
+write.csv(paramsB, "VLOADsamples.csv")
+write.csv(paramsY, "Ysamples.csv")
 
 
 #### GF using posterior predictive density

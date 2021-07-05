@@ -25,7 +25,7 @@ el = read.csv("el.csv") # baseline covariates
 # filter out HIV negative patients (maindr != 1)
 
 f22r.f = f22r %>% filter(EMTXDR == 2, MAINDR != 1)
-drug1.f = drug1 %>% filter(CASEID %in% f22r.f$CASEID)
+drug1.f = drug1 %>% filter(CASEID %in% f22r.f$CASEID) # CASES
 # length(unique(drug1.f$CASEID)) # 104 (out of 132) end up being treated
 
 # let's look at these treatment sequences/ how much data do we have here 
@@ -255,39 +255,61 @@ The CD4/CD8 ratio is often used as an indicator of immune system health. The nor
 ```{r}
 # labsdat: caseid, visit, vload, cd4n, cd8n, cd3n, hsrat
 
+# does treatment probability jump at some threshold for viral load??
+
+
 # let's filter to people who have an observed outcome (time 4)
-outcome.cohort = labsdat %>% filter(t.x==4) %>% filter(!is.na(VLOAD))
-labsdat.f = labsdat %>% filter(t.x < 5, CASEID %in% outcome.cohort$CASEID)
-labsdat.kplus1 = labsdat %>% filter(t.x==4)
-nrow(labsdat.kplus1) - sum(is.na(labsdat.kplus1$VLOAD))
+outcome.cohort = labsdat %>% filter(t.x==3) %>% filter(!is.na(VLOAD))
+labsdat.f = labsdat %>% filter(t.x < 4, CASEID %in% outcome.cohort$CASEID)
+#labsdat.kplus1 = labsdat %>% filter(t.x==4)
+#nrow(labsdat.kplus1) - sum(is.na(labsdat.kplus1$VLOAD))
 ```
 
 
 ```{r}
+
+library(mice)
+
+# outcome (Y_{K+1}) goes on line K
 # g-formula on reduced dataset
 labsdat.gf = labsdat.f %>% dplyr::select(CASEID, VLOAD, CD4N, t.x, class2) %>% mutate(t = t.x-1)
 labsdat.gf$A = ifelse(is.na(labsdat.gf$class2),0,1)
-labsdat.gf = labsdat.gf %>% group_by(CASEID) %>% mutate(A2 = c(A[2:4],'na'))
+labsdat.gf = labsdat.gf %>% group_by(CASEID) %>% mutate(A2 = c(A[2:4],'na'), Y = c(VLOAD[2:4],'na') ) %>%
+              select(CASEID, VLOAD, CD4N, t, A2, Y) %>% filter(t < 3)
+
+labsdat.full <- mice(labsdat.gf,m=5,maxit=50,meth='pmm',seed=500)
+
+labsdat.full1 = complete(labsdat.full, 1)
+labsdat.full1$A2 = as.numeric(labsdat.full1$A2)
+labsdat.full1$Y = as.numeric(labsdat.full1$Y)
+labsdat.full1$id = rep(1:79, each = 3)
+labsdat.full1$Y = ifelse(labsdat.full1$t < 2, NA, labsdat.full1$Y)
+
+ld = labsdat.full1
+N = 79 * 3
+fakedat = data.frame(id = rep(1:79, each = 3), t = rep(c(0:2), 79), CD4N = rnorm(N), A2 = rbinom(N, 1, prob = 0.5),
+                     Y = rep(c(NA,NA, 1), 79 ))
 
 # what is the true effect? - .7, - 1 (-1.7)
 # use gfoRmula package
-id = 'CASEID'
+id = 'id'
 time_name = 't'
 covnames = c('CD4N', 'A2')
-outcome_name = 'VLOAD'
+outcome_name = 'Y'
 covtypes = c('normal', 'binary')
-histories = c(lagged)
-histvars = list(c('CD4N', 'A2'))
-covparams = list(covmodels=c(CD4N ~ lag1_CD4N + lag1_A2,
-                             A2 ~ CD4N + lag1_A2))
-ymodel = Y ~ A2 + lag1_A2 + lag1_CD4N
+#histories = c(lagged)
+#histvars = list(c('A2', 'CD4N'))
+covparams = list(covmodels=c(CD4N ~ 1,
+                             A2 ~ CD4N))
+ymodel = Y ~ A2 + CD4N
 intvars = list('A2', 'A2')
-interventions = list( list(c(static, rep(0,4))),
-                      list(c(static, c(1,1,1,1))) )
+interventions = list( list(c(static, rep(0,3))),
+                      list(c(static, c(1,1,1))) )
 int_descript = c('Never', 'Always')
 
-b = gformula_continuous_eof(labsdat.gf, id=id, time_name = time_name, covnames = covnames, covtypes = covtypes,
-                            covparams = covparams, histvars = histvars, histories = histories, outcome_name = outcome_name,
+b = gformula_continuous_eof(fakedat, id=id, time_name = time_name, covnames = covnames, covtypes = covtypes,
+                            covparams = covparams, 
+                            outcome_name = outcome_name,
                             ymodel = ymodel, intvars = intvars, interventions = interventions, int_descript = int_descript,
                             seed = 1, nsamples = 100, ref_int = 2) # 0.2771665/ 0.2697512
 
@@ -299,5 +321,37 @@ mean = b$result$`Mean difference`[2] # -1.79
 
 ```
 
+```{r}
+# let's tweak continuous eof 
+
+tweaked = data.frame(continuous_eofdata)
+tweaked2 = tweaked %>% filter(t0<3, id < 80)
+tweaked2$Y = ifelse(tweaked2$t0 == 2, rnorm(1), tweaked2$Y)
+
+tweaked2$L2 = ld$CD4N
+tweaked2$A = ld$A2
+tweaked2$Y = ld$Y
+tweaked2$id = ld$id
+
+id <- 'id'
+time_name <- 't0'
+covnames <- c('L2', 'A')
+outcome_name <- 'Y'
+covtypes <- c('normal', 'binary')
+histories <- c(lagged)
+histvars <- list(c('A', 'L2'))
+covparams <- list(covmodels = c(L2 ~ lag1_A + lag1_L2,
+                                A ~ L2 + lag1_L2 + t0))
+ymodel <- Y ~ A + L2 + lag1_A + lag1_L2
+intvars <- list('A', 'A')
+interventions <- list(list(c(static, rep(0, 3))), list(c(static, rep(1, 3))))
+int_descript <- c('Never treat', 'Always treat')
+nsimul <- 10000
+
+gform_cont_eof <- gformula_continuous_eof(obs_data = tweaked2, id = id, time_name = time_name, covnames = covnames, outcome_name = outcome_name, covtypes = covtypes, covparams = covparams, ymodel = ymodel, intvars = intvars, interventions = interventions, int_descript = int_descript, histories = histories, histvars = histvars, nsimul = nsimul, seed = 1234)
+
+gform_cont_eof
+
+```
 
 

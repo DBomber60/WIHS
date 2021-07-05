@@ -43,7 +43,6 @@ for(it in 2:nIter) {
   params[it, 2:(p+1)] = new.params$gamma.new
   params[it, (p+2):(2*p+1)] = new.params$beta.new
   params[it, 2*p+2] = new.params$epsilon.new
-  
 }
 
 plot(params[,6])
