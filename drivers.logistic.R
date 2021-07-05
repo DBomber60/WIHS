@@ -1,50 +1,9 @@
-############### FUNCTIONS TO CARRY OUT BAYESIAN G-FORMULA ################
-
-# sample new set of parameter values for a normally distributed response
-sample.new.N = function(theta.old, gamma.old, beta.old, sigsq.old, design, resp) {
-  
-  p = ncol(design)
-  # sample new theta
-  # assumption: U(0,1) prior on theta/ binomial distribution on gamma (beta - binomial)
-  
-  theta.new = rbeta(1, shape1 = sum(gamma.old) + 1  ,shape2 = p - sum(gamma.old) + 1)
-  
-  # sample new gamma 
-  # assumption: independent elements, fixed nu_0, nu_1
-  
-  p1 = dnorm(beta.old, sd = sqrt(nu_1)) * theta.new
-  p0 = dnorm(beta.old, sd = sqrt(nu_0)) * (1-theta.new)
-  gamma.new = rbinom(p, 1, prob = p1/(p1 + p0))  
-
-  # sample new beta
-  # assume scale mixture prior and normal likelihood for response with sigma = sigma^2 * I
-  M = (t(design) %*% design)*sigsq.old^-1 + diag(ifelse(gamma.new == 1, 1/nu_1, 1/nu_0)) 
-  Minv = solve(M)
-  meanvec = sigsq.old^-1 * Minv %*% t(design) %*% resp
-  beta.new = rmvnorm(1, mean = meanvec, sigma = Minv)
-  
-  # sample new sigsq
-  # assumptions: IG(.5, .5) prior on sigsq
-  ss = sum ( (resp - design %*% array(beta.new, dim=p) )^2 )
-  n = length(resp)
-  sigsq.new = 1/rgamma(1, (n+1)/2, (ss+1)/2)
-  
-  
-  return(list(theta.new=theta.new, 
-              gamma.new=gamma.new, 
-              beta.new=beta.new,
-              sigsq.new=sigsq.new))
-}
-
-
-##################### sample new parameters for binary reponse ###################
-
-# sample a new beta
+library(mvtnorm)
 
 # log probability of beta given data, gamma. elements of dstar are diagonal elements of D^(-1)
 logpi = function(beta,y,X, dstar){
   eta = X%*%beta;
-  return(sum(y*eta -log(1+exp(eta))) - .5 * sum( dstar * beta^2 ) )
+  return(sum(y*eta - log(1+exp(eta))) - .5 * sum( dstar * beta^2 ) )
 }
 
 # compute gradient based on a N(0,D) prior on beta
@@ -91,49 +50,53 @@ acc_mMALA = function(beta_old, beta_prop, y, X, epsilon, dstar) {
   return(a * b)
 }
 
+
+
+
+
 # sample new set of parameter values for a normally distributed response
 sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, resp) {
-  nu_0 = 0.01
-  nu_1 = 5
   
   p = ncol(design)
   # sample new theta
   # assumption: U(0,1) prior on theta/ binomial distribution on gamma (beta - binomial)
   
-  theta.new = rbeta(1, shape1 = sum(gamma.old) + 1  ,shape2 = p - sum(gamma.old) + 1)
-  
-  # print(theta.new) fine
+  theta.new = rbeta(1, shape1 = sum(gamma.old) + 1, shape2 = p - sum(gamma.old) + 1)
   
   # sample new gamma 
   # assumption: independent elements, fixed nu_0, nu_1
   
   p1 = dnorm(beta.old, sd = sqrt(nu_1)) * theta.new
   p0 = dnorm(beta.old, sd = sqrt(nu_0)) * (1-theta.new)
-  gamma.new = rbinom(p, 1, prob = p1/(p1 + p0))
-  #print(gamma.new)
-  
-  
-  dstar = ifelse(gamma.new==1, 1/nu_1, 1/nu_0)
+  gamma.new = rbinom(p, 1, prob = p1/(p1 + p0))  
 
   # sample new beta
+  dstar = ifelse(gamma.new == 1, 1/nu_1, 1/nu_0)
   beta.prop = beta_prop_mMALA(beta.old, epsilon.old, resp, design, dstar)
-  print(beta.prop)
-    
+  #print(beta.prop)
+  
   # accept it?
   al = acc_mMALA(beta_old = beta.old, beta_prop = beta.prop, y = resp, X = design, epsilon = epsilon.old, dstar = dstar)
+  print(al)
   Acc = min(1,al)
   if (runif(1)<=Acc){
     beta.new = beta.prop;
   } else {beta.new = beta.old}
   
-  epsilon.new = 0.01 #epsilon.old + (1/it^0.7)*(Acc - 0.5);
+  epsilon.new = exp( log(epsilon.old) + (1/it^0.7)*(Acc - 0.4) )
   print(epsilon.new)
-
+  
+  # assume scale mixture prior and normal likelihood for response with sigma = sigma^2 * I
+  #M = (t(design) %*% design)*sigsq.old^-1 + diag(ifelse(gamma.new == 1, 1/nu_1, 1/nu_0)) 
+  #Minv = solve(M)
+  #meanvec = sigsq.old^-1 * Minv %*% t(design) %*% resp
+  #beta.new = rmvnorm(1, mean = meanvec, sigma = Minv)
+  
   # sample new sigsq
   # assumptions: IG(.5, .5) prior on sigsq
   #ss = sum ( (resp - design %*% array(beta.new, dim=p) )^2 )
   #n = length(resp)
-  #sigsq.new = rgamma(1, (n+1)/2, (ss+1)/2)
+  #sigsq.new = 1/rgamma(1, (n+1)/2, (ss+1)/2)
   
   
   return(list(theta.new=theta.new, 
@@ -141,8 +104,4 @@ sample.new.B = function(theta.old, gamma.old, beta.old, epsilon.old, design, res
               beta.new=beta.new,
               epsilon.new=epsilon.new))
 }
-
-
-
-
 

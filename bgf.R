@@ -1,6 +1,5 @@
 source('drivers.R')
 
-
 dat = read.csv("combined2.csv")[,-1]
 
 dat$VL_0 = ifelse(dat$VLOAD_0 < exp(10), 0, 1)
@@ -24,7 +23,7 @@ params = array(.1, dim = c(3, nIter, 2 * p + 2)) # intermediate variables
 #paramsB = array(.01, dim = c(1, nIter, 2 * p + 2)) # params for binary variable (vload)
 paramsY = array(.1, dim = c(nIter, 2 * pY + 2))
 
-paramsB[1,1,5:7] = coefficients(glm(VL_1 ~ VL_0 + A2_0, family = binomial, data = dat))
+#paramsB[1,1,5:7] = coefficients(glm(VL_1 ~ VL_0 + A2_0, family = binomial, data = dat))
 
 ########### sample parameters ############
 for(it in 2:nIter) {
