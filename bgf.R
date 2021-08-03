@@ -1,4 +1,4 @@
-source('drivers.R')
+source('drivers.R') # normal response
 source('drivers.logistic.R')
 
 dat = read.csv("combined2.csv")[,-1]
